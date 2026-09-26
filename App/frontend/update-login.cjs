@@ -1,8 +1,45 @@
-import { useAuth } from './AuthContext';
+﻿const fs = require('fs');
+const path = require('path');
+
+const authPath = path.join(__dirname, 'src', 'auth', 'AuthContext.jsx');
+let auth = fs.readFileSync(authPath, 'utf-8');
+
+// Change login and register to return errors instead of alerts
+auth = auth.replace(
+  `alert("Credenciales incorrectas o usuario no registrado.");`,
+  `return { error: "Correo o contraseña incorrectos." };`
+);
+auth = auth.replace(
+  `if (existingUser) {`,
+  `if (existingUser) {`
+);
+// In login() need to make sure we return a success object or undefined when OK
+auth = auth.replace(`navigate('/menu');
+    } else {
+      return { error: "Correo o contraseña incorrectos." };
+    }`, 
+    `navigate('/menu');
+      return { success: true };
+    } else {
+      return { error: "Correo o contraseña incorrectos." };
+    }`);
+
+auth = auth.replace(`alert("El correo ya está registrado.");
+      return;`, 
+      `return { error: "Este correo ya está registrado." };`);
+auth = auth.replace(`navigate('/menu');
+  };`, 
+  `navigate('/menu');
+    return { success: true };
+  };`);
+
+fs.writeFileSync(authPath, auth, 'utf-8');
+
+const loginPath = path.join(__dirname, 'src', 'auth', 'Login.jsx');
+const loginContent = `import { useAuth } from './AuthContext';
 import { Eye, EyeOff, ArrowRight, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 
 export default function Login() {
   const { login, register } = useAuth();
@@ -24,24 +61,24 @@ export default function Login() {
     setSuccessMsg('');
 
     if (mode === 'recover') {
-      if (!email) return toast.error('Ingresá tu correo electrónico');
+      if (!email) return setErrorMsg("Ingresá tu correo electrónico");
       
       // Simulación de envío de correo (Esto va en el Backend)
-      toast.success('Correo enviado', { description: 'Revisá tu bandeja de entrada o spam.' });
+      setSuccessMsg("Si el correo existe, te enviamos un enlace para restablecer tu contraseña.");
       setTimeout(() => setMode('login'), 4000);
       return;
     }
 
     if (mode === 'register') {
-      if (!name || !email || !password) return toast.error('Completá todos los campos');
-      if (password.length < 6) return toast.error('La contraseña debe tener al menos 6 caracteres');
+      if (!name || !email || !password) return setErrorMsg("Completá todos los campos");
+      if (password.length < 6) return setErrorMsg("La contraseña debe tener al menos 6 caracteres");
       
       const res = register(name, email, password);
-      if (res?.error) toast.error(res.error); else toast.success('¡Bienvenido!');
+      if (res?.error) setErrorMsg(res.error);
     } else {
-      if (!email || !password) return toast.error('Completá todos los campos');
+      if (!email || !password) return setErrorMsg("Completá todos los campos");
       const res = login(email, password);
-      if (res?.error) toast.error(res.error); else toast.success('¡Bienvenido!');
+      if (res?.error) setErrorMsg(res.error);
     }
   };
 
@@ -153,3 +190,6 @@ export default function Login() {
     </div>
   );
 }
+`;
+fs.writeFileSync(loginPath, loginContent, 'utf-8');
+console.log("Login updated successfully.");

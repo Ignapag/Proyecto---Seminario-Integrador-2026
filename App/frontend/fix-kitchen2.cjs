@@ -1,4 +1,8 @@
-import { useData } from '../shared/store/DataContext';
+﻿const fs = require("fs");
+const path = require("path");
+
+const kitchenPath = path.join(__dirname, "src", "kitchen", "Kitchen.jsx");
+const kitchenBody = `import { useData } from '../shared/store/DataContext';
 import { Clock, CheckCircle } from 'lucide-react';
 import { useEffect } from 'react';
 
@@ -6,7 +10,23 @@ export default function Kitchen() {
   const { state, dispatch } = useData();
   const { orders } = state;
 
-
+  useEffect(() => {
+    const pendingOrders = orders.filter(o => o.status === 'pendiente' || o.status === 'en_preparacion').length;
+    if (pendingOrders > 0) {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+        gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.15);
+      } catch (e) {}
+    }
+  }, [orders]);
 
   const kitchenOrders = orders.filter(o => o.status === 'en_preparacion');
 
@@ -31,8 +51,8 @@ export default function Kitchen() {
           </div>
         ) : (
           kitchenOrders.map((order, i) => (
-            <div key={order.id} className={`bg-white rounded-2xl shadow-monu overflow-hidden border-2 ${i === 0 ? 'border-red-500 animate-pulse' : 'border-transparent'}`}>
-              <div className={`p-4 text-white flex justify-between items-center ${i === 0 ? 'bg-red-500' : 'bg-monu-dark'}`}>
+            <div key={order.id} className={\`bg-white rounded-2xl shadow-monu overflow-hidden border-2 \${i === 0 ? 'border-red-500 animate-pulse' : 'border-transparent'}\`}>
+              <div className={\`p-4 text-white flex justify-between items-center \${i === 0 ? 'bg-red-500' : 'bg-monu-dark'}\`}>
                 <div className="flex items-center gap-2 font-bold">
                   <Clock className="w-4 h-4" />
                   <span>{i === 0 ? '¡Demorado!' : '10:45 AM'}</span>
@@ -45,10 +65,10 @@ export default function Kitchen() {
                   {order.items.map((item, j) => (
                     <div key={j} className="flex gap-3 items-start border-b border-monu-green/10 pb-3 last:border-0 last:pb-0">
                       <span className="w-8 h-8 rounded-lg bg-monu-green/10 text-monu-green flex items-center justify-center font-bold text-lg shrink-0">
-                        {item.match(/^\d+/)?.[0] || '1'}
+                        {item.match(/^\\d+/)?.[0] || '1'}
                       </span>
                       <span className="font-bold text-monu-dark text-lg leading-tight">
-                        {item.replace(/^\dx\s/, '')}
+                        {item.replace(/^\\dx\\s/, '')}
                       </span>
                     </div>
                   ))}
@@ -69,3 +89,5 @@ export default function Kitchen() {
     </div>
   );
 }
+`;
+fs.writeFileSync(kitchenPath, kitchenBody, "utf-8");

@@ -1,9 +1,98 @@
-﻿import { useState } from 'react';
+﻿const fs = require('fs');
+const path = require('path');
+
+// 1. REWRITE DELIVERY PANEL
+const dpPath = path.join(__dirname, 'src', 'fulfillment', 'DeliveryPanel.jsx');
+const dpContent = `import { useData } from '../shared/store/DataContext';
+import { MapPin, Phone, CheckCircle, Navigation } from 'lucide-react';
+
+export default function DeliveryPanel() {
+  const { state, dispatch } = useData();
+  const { orders } = state;
+
+  const activeOrders = orders.filter(o => o.status === 'en_camino' || o.status === 'listo');
+  
+  const markAsDelivered = (id) => {
+    dispatch({ type: 'UPDATE_ORDER_STATUS', payload: { id, status: 'entregado' } });
+  };
+
+  return (
+    <div className="space-y-6 max-w-3xl mx-auto">
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-extrabold font-heading text-monu-dark mb-1">Repartidor Activo</h1>
+          <p className="text-monu-text/70">Tus pedidos asignados.</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {activeOrders.length === 0 ? (
+          <div className="py-20 text-center text-monu-text/50">
+            <span className="text-5xl block mb-4">🛵</span>
+            <p className="text-lg">No tenés pedidos asignados ahora mismo.</p>
+          </div>
+        ) : (
+          activeOrders.map((order, i) => (
+            <div key={order.id} className={\`bg-white rounded-2xl shadow-sm overflow-hidden border-2 \${i === 0 ? 'border-monu-orange' : 'border-transparent'}\`}>
+              <div className={\`p-4 text-white flex justify-between items-center \${i === 0 ? 'bg-monu-orange' : 'bg-monu-green/80'}\`}>
+                <div className="flex items-center gap-2 font-bold">
+                  <span>{i === 0 ? '¡Urgente!' : 'Siguiente'}</span>
+                </div>
+                <span className="font-extrabold text-xl">#{order.id}</span>
+              </div>
+              
+              <div className="p-5 space-y-5">
+                <div className="flex items-start gap-3">
+                  <MapPin className="w-5 h-5 text-monu-green shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-gray-500">Dirección de entrega</p>
+                    <p className="font-extrabold text-xl text-monu-dark">{order.address}</p>
+                    <p className="font-bold text-monu-dark/70">{order.client}</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-2 border-t border-gray-100 pt-5">
+                  <a 
+                    href={\`tel:\${order.phone?.replace(/\\D/g, '') || ''}\`}
+                    className="flex-1 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition"
+                  >
+                    <Phone className="w-5 h-5" /> Llamar
+                  </a>
+                  <a 
+                    href={\`https://maps.google.com/?q=\${encodeURIComponent(order.address + ', La Plata, Buenos Aires')}\`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition"
+                  >
+                    <Navigation className="w-5 h-5" /> Ruta GPS
+                  </a>
+                </div>
+
+                <button 
+                  onClick={() => markAsDelivered(order.id)}
+                  className="w-full bg-monu-dark hover:bg-black text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2 transition shadow-md"
+                >
+                  <CheckCircle className="w-5 h-5" />
+                  Marcar Entregado
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+`;
+fs.writeFileSync(dpPath, dpContent, 'utf-8');
+
+// 2. REWRITE CART DRAWER
+const cartPath = path.join(__dirname, 'src', 'components', 'client', 'CartDrawer.jsx');
+const cartContent = `import { useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { useData } from '../../shared/store/DataContext';
-import { Trash2, CreditCard, ChevronRight, CheckCircle } from 'lucide-react';
+import { Trash2, CreditCard, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 
 export default function CartDrawer({ isOpen, onClose }) {
   const { user } = useAuth();
@@ -11,11 +100,10 @@ export default function CartDrawer({ isOpen, onClose }) {
   const { cart } = state;
   const navigate = useNavigate();
   
-  
+  const [isSuccess, setIsSuccess] = useState(false);
   const [isPayingMP, setIsPayingMP] = useState(false);
   
   const [address, setAddress] = useState('');
-  const [zone, setZone] = useState('');
   const [phone, setPhone] = useState('');
 
   const updateQuantity = (index, delta) => {
@@ -37,16 +125,19 @@ export default function CartDrawer({ isOpen, onClose }) {
         type: 'PLACE_ORDER', 
         payload: { 
           client: user?.name || 'Cliente sin cuenta', 
-          address: `${address}, ${zone}`, 
+          address: address, 
           phone: phone,
           total, 
-          items: cart.map(i => `${i.quantity}x ${i.name} ${i.notes ? '(' + i.notes + ')' : ''}`) 
+          items: cart.map(i => \`\${i.quantity}x \${i.name} \${i.notes ? '(' + i.notes + ')' : ''}\`) 
         } 
       });
       setIsPayingMP(false);
-      toast.success('¡Pedido Confirmado!', { description: 'Tu pedido ya entró a la cocina. ¡Preparate para disfrutar!' });
-      onClose();
-      navigate('/menu');
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        onClose();
+        navigate('/menu');
+      }, 3000);
     }, 2000); // MP sim
   };
 
@@ -59,7 +150,7 @@ export default function CartDrawer({ isOpen, onClose }) {
         />
       )}
       
-      <div className={`fixed inset-y-0 right-0 w-full md:w-96 bg-white z-50 shadow-2xl transform transition-transform duration-300 flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className={\`fixed inset-y-0 right-0 w-full md:w-96 bg-white z-50 shadow-2xl transform transition-transform duration-300 flex flex-col \${isOpen ? 'translate-x-0' : 'translate-x-full'}\`}>
         <div className="p-5 border-b flex justify-between items-center bg-monu-cream/30">
           <h2 className="text-xl font-extrabold font-heading text-monu-dark">Tu Carrito</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
@@ -68,7 +159,15 @@ export default function CartDrawer({ isOpen, onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto p-5">
-          {cart.length === 0 ? (
+          {isSuccess ? (
+            <div className="h-full flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in zoom-in duration-500">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center text-green-500 mb-4">
+                <CheckCircle className="w-10 h-10" />
+              </div>
+              <h3 className="text-2xl font-extrabold text-monu-dark">¡Pedido Confirmado!</h3>
+              <p className="text-monu-text/70">Tu pedido ya entró a la cocina. Podés pasar a retirarlo o esperar al repartidor en 30 minutos.</p>
+            </div>
+          ) : cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-monu-text/50">
               <span className="text-5xl mb-4">🛒</span>
               <p className="font-bold">Tu carrito está vacío</p>
@@ -110,25 +209,12 @@ export default function CartDrawer({ isOpen, onClose }) {
           )}
         </div>
 
-        {cart.length > 0 && (
+        {!isSuccess && cart.length > 0 && (
           <div className="p-5 border-t bg-monu-cream/30">
             <div className="space-y-3 mb-4">
-              <div className="bg-orange-50 border border-orange-200 text-orange-800 text-xs font-bold p-3 rounded-xl mb-2 flex items-start gap-2">
-                <span className="text-lg leading-none">📍</span>
-                <p>Delivery exclusivo para <strong>Ensenada</strong> y <strong>Punta Lara</strong>.</p>
-              </div>
-              <select
-                value={zone}
-                onChange={(e) => setZone(e.target.value)}
-                className="w-full bg-white border border-monu-green/20 rounded-xl px-4 py-3 font-bold text-monu-dark focus:outline-none focus:border-monu-green transition-colors"
-              >
-                <option value="">Seleccioná tu localidad...</option>
-                <option value="Ensenada">Ensenada</option>
-                <option value="Punta Lara">Punta Lara</option>
-              </select>
               <input 
                 type="text" 
-                placeholder="Calle y Número (Ej: Calle 43 #123)..." 
+                placeholder="Tu dirección de entrega..." 
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 className="w-full bg-white border border-monu-green/20 rounded-xl px-4 py-3 font-bold text-monu-dark focus:outline-none focus:border-monu-green transition-colors"
@@ -155,7 +241,7 @@ export default function CartDrawer({ isOpen, onClose }) {
 
             <button 
               onClick={placeOrder}
-              disabled={cart.length === 0 || isPayingMP || !address || !phone || !zone}
+              disabled={cart.length === 0 || isPayingMP || !address || !phone}
               className="w-full bg-[#009EE3] hover:bg-[#0088C4] disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95"
             >
               {isPayingMP ? (
@@ -176,3 +262,7 @@ export default function CartDrawer({ isOpen, onClose }) {
     </>
   );
 }
+`;
+fs.writeFileSync(cartPath, cartContent, 'utf-8');
+
+console.log("Rewrote DeliveryPanel and CartDrawer.");
